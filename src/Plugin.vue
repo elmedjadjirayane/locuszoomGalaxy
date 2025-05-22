@@ -3,10 +3,14 @@ import { onMounted, watch, ref } from "vue";
 import "locuszoom/dist/locuszoom.css";
 import LocusZoom from "locuszoom/esm";
 import LzTabixSource from "locuszoom/esm/ext/lz-tabix-source";
-import LzParsers from "locuszoom/esm/ext/lz-parsers";
-import LzDynamicUrls from "locuszoom/esm/ext/lz-dynamic-urls";
+import { makeGWASParser } from "locuszoom/esm/ext/lz-parsers";
+import { plotUpdatesUrl, plotWatchesUrl } from "locuszoom/esm/ext/lz-dynamic-urls";
 
 LocusZoom.use(LzTabixSource);
+
+const COLOR = "#E30A17";
+const MAX_RANGE = 10000000;
+const SIZE = 40;
 
 const props = defineProps({
     datasetId: String,
@@ -16,22 +20,23 @@ const props = defineProps({
     specs: Object,
     tracks: Array,
 });
+
 const errorMessage = ref("");
+
 function render() {
     const id = props.settings.tabix?.id;
-    const name = props.settings.tabix?.name;
     const chrIn = props.settings.chromosome;
     const startIn = props.settings.start;
     const endIn = props.settings.end;
-    const chr = props.settings.chr;
-    const pos = props.settings.pos;
-    const ref = props.settings.ref;
-    const alt = props.settings.alt;
-    const pval = props.settings.pval;
-    const isNeg = props.settings.isNeg;
-    const beta = props.settings.beta;
-    const betaErr = props.settings.betaErr;
-    if (endIn - startIn > 10000000) {
+    const chrom_col = props.settings.chrom_col;
+    const pos_col = props.settings.pos_col;
+    const ref_col = props.settings.ref_col;
+    const alt_col = props.settings.alt_col;
+    const pvalue_col = props.settings.pvalue_col;
+    const is_neg_log_pvalue = props.settings.is_neg_log_pvalue;
+    const beta_col = props.settings.beta_col;
+    const stderr_beta_col = props.settings.stderr_beta_col;
+    if (endIn - startIn > MAX_RANGE) {
         errorMessage.value = "We cannot output more than 10Mb at a time!";
         return;
     }
@@ -40,57 +45,33 @@ function render() {
         return;
     }
     errorMessage.value = "";
-    const gwasParser = LzParsers.makeGWASParser({
-        chrom_col: chr,
-        pos_col: pos,
-        ref_col: ref,
-        alt_col: alt,
-        pvalue_col: pval,
-        is_neg_log_pvalue: isNeg,
-        beta_col: beta,
-        stderr_beta_col: betaErr,
+    const gwasParser = makeGWASParser({
+        chrom_col,
+        pos_col,
+        ref_col,
+        alt_col,
+        pvalue_col,
+        is_neg_log_pvalue,
+        beta_col,
+        stderr_beta_col,
     });
-    const bedParser = LzParsers.makeBed12Parser({ normalize: true });
-    const ldParser = LzParsers.makePlinkLdParser({ normalize: true });
     let data_sources = new LocusZoom.DataSources().add("assoc", [
         "TabixUrlSource",
         {
-            url_data: `${props.root}api/datasets/${props.datasetId}/display?to_ext=bgzip`,
-            url_tbi: `${props.root}api/datasets/${id}/display?to_ext=tbi`,
-
+            url_data: `${props.root}api/datasets/${props.datasetId}/display`,
+            url_tbi: `${props.root}api/datasets/${id}/display`,
             parser_func: gwasParser,
             overfetch: 0,
         },
     ]);
     let stateUrlMapping = { chr: "chrom", start: "start", end: "end", ldrefvar: "ld_variant" };
-    // Fetch initial position from the URL, or use some defaults
-    let initialState = LzDynamicUrls.paramsFromUrl(stateUrlMapping);
-    if (!Object.keys(initialState).length) {
-        initialState = { chr: chrIn, start: startIn, end: endIn };
-    } else {
-        initialState = { chr: chrIn, start: startIn, end: endIn };
-    }
-    let association_panel_mods = {
-        data_layers: [LocusZoom.Layouts.get("data_layer", "significance", { name: "Line of GWAS Significance" })],
-        toolbar: LocusZoom.Layouts.get("panel", "association")["toolbar"],
-    };
-    let layout2 = {
-        state: initialState,
-        width: 800,
-        responsive_resize: true,
-        panels: [LocusZoom.Layouts.get("panel", "association", association_panel_mods)],
-        toolbar: LocusZoom.Layouts.get("toolbar", "standard_plot"),
-    };
-
     let association_data_layer_mods = {
         id: "associationpvalues_",
         name: "association",
         point_shape: "circle",
-        point_size: 40,
-        color: "rgb(212, 63, 58)",
-        legend: [
-            { shape: "circle", color: "rgb(212, 63, 58)", size: 40, label: "phen", class: "lz-data_layer-scatter" },
-        ],
+        point_size: SIZE,
+        color: COLOR,
+        legend: [{ shape: "circle", color: COLOR, size: SIZE, label: "phen", class: "lz-data_layer-scatter" }],
         tooltip: {
             closable: true,
             show: { or: ["highlighted", "selected"] },
@@ -100,13 +81,25 @@ function render() {
                 Ref. Allele: <strong>{{assoc:ref_allele|htmlescape}}</strong><br>`,
         },
     };
-    const layer_layout = LocusZoom.Layouts.get("data_layer", "association_pvalues", association_data_layer_mods);
-    layer_layout.namespace = { assoc: "assoc" };
-    layer_layout.data_operations = [];
-    layout2.panels[0].data_layers.push(layer_layout);
-    let plot = LocusZoom.populate("#lz-plot", data_sources, layout2);
-    LzDynamicUrls.plotUpdatesUrl(plot, stateUrlMapping);
-    LzDynamicUrls.plotWatchesUrl(plot, stateUrlMapping);
+    const data_layer = {
+        ...LocusZoom.Layouts.get("data_layer", "association_pvalues", association_data_layer_mods),
+        namespace: { assoc: "assoc" },
+        data_operations: [],
+    };
+    const panel = LocusZoom.Layouts.get("panel", "association", {
+        data_layers: [data_layer],
+    });
+    let plot = LocusZoom.populate("#lz-plot", data_sources, {
+        state: { chr: chrIn, start: startIn, end: endIn },
+        responsive_resize: true,
+        panels: [panel],
+        toolbar: LocusZoom.Layouts.get("toolbar", "standard_plot"),
+    });
+    plotUpdatesUrl(plot, stateUrlMapping);
+    plotWatchesUrl(plot, stateUrlMapping);
+
+    // manually set size of svg container
+    document.querySelector("#lz-plot_svg").style.height = "calc(100vh - 50px)";
 }
 
 onMounted(() => {
@@ -124,18 +117,13 @@ watch(
 
 <template>
     <div id="lz-plot" class="h-100"></div>
-    <div class="error-message" v-if="errorMessage" style="color: red; margin-top: 10px">{{ errorMessage }}</div>
+    <div v-if="errorMessage" class="mt-4 p-3 border bg-red-100 text-red-700 text-sm text-center rounded">
+        {{ errorMessage }}
+    </div>
 </template>
-<style scoped>
-.error-message {
-    margin-top: 15px;
-    padding: 10px 20px;
-    border: 1px solid #f44336;
-    background-color: #fdecea;
-    color: #b71c1c;
-    border-radius: 5px;
-    font-size: 14px;
-    font-weight: 500;
-    text-align: center;
+
+<style>
+.lz-panel-toolbar {
+    display: none;
 }
 </style>

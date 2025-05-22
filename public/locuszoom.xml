@@ -41,50 +41,50 @@
             <value>999999</value>
         </input>
         <input>
+            <label>Are the p-values in -log10?</label>
+            <name>is_neg_log_pvalue</name>
+            <type>boolean</type>
+            <value>false</value>
+        </input>
+        <input>
             <label>Column for chromosomes</label>
-            <name>chr</name>
+            <name>chrom_col</name>
             <type>integer</type>
             <value>1</value>
         </input>
         <input>
             <label>Column for positions</label>
-            <name>pos</name>
+            <name>pos_col</name>
             <type>integer</type>
             <value>2</value>
         </input>
         <input>
             <label>Column for reference allele</label>
-            <name>ref</name>
+            <name>ref_col</name>
             <type>integer</type>
             <value>6</value>
         </input>
         <input>
             <label>Column for alternative allele</label>
-            <name>alt</name>
+            <name>alt_col</name>
             <type>integer</type>
             <value>7</value>
         </input>
         <input>
             <label>Column for p-values</label>
-            <name>pval</name>
+            <name>pvalue_col</name>
             <type>integer</type>
             <value>13</value>
         </input>
-         <input>
-            <label>Are the p-values in -log_10?</label>
-            <name>isNeg</name>
-            <type>boolean</type>
-            <value>false</value>
-        </input>
         <input>
-            <label>Column for Beta</label>
-            <name>beta</name>
+            <label>Column for beta</label>
+            <name>beta_col</name>
             <type>integer</type>
             <value>9</value>
         </input>
         <input>
             <label>Column for standard error of beta</label>
-            <name>betaErr</name>
+            <name>stderr_beta_col</name>
             <type>integer</type>
             <value>10</value>
         </input>
